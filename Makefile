@@ -3,21 +3,15 @@
 # configuration file
 file := ${GEOCINT_WORK_DIRECTORY}/config.inc.sh
 # Add here export for every varible from configuration file that you are going to use in targets
-export PGUSER = $(shell sed -n -e '/^PGUSER/p' ${file} | cut -d "=" -f 2)
-export PGDATABASE = $(shell sed -n -e '/^PGDATABASE/p' ${file} | cut -d "=" -f 2)
 export SLACK_CHANNEL = $(shell sed -n -e '/^SLACK_CHANNEL/p' ${file} | cut -d "=" -f 2)
 export SLACK_BOT_NAME = $(shell sed -n -e '/^SLACK_BOT_NAME/p' ${file} | cut -d "=" -f 2)
 export SLACK_BOT_EMOJI = $(shell sed -n -e '/^SLACK_BOT_EMOJI/p' ${file} | cut -d "=" -f 2)
 export SLACK_KEY = $(shell sed -n -e '/^SLACK_KEY/p' ${file} | cut -d "=" -f 2)
-export CKAN_DATA_S3_URL = $(shell sed -n -e '/^CKAN_DATA_S3_URL/p' ${file} | cut -d "=" -f 2)
-export CKAN_DATA_URL = $(shell sed -n -e '/^CKAN_DATA_URL/p' ${file} | cut -d "=" -f 2)
-export CKAN_BASE_URL = $(shell sed -n -e '/^CKAN_BASE_URL/p' ${file} | cut -d "=" -f 2)
-export CKAN_API_KEY = $(shell sed -n -e '/^CKAN_API_KEY/p' ${file} | cut -d "=" -f 2)
+
 
 # these makefiles stored in geocint-runner and geocint-openstreetmap repositories
 # runner_make contains basic set of targets for creation project folder structure
-# osm_make contains set of targets for osm data processing
-include runner_make osm_make
+include runner_make
 
 ## ------------- CONTROL BLOCK -------------------------
 
@@ -26,19 +20,12 @@ include runner_make osm_make
 all: dev ## [FINAL] Meta-target on top of all other targets, or targets on parking.
 
 # by default the clean target is set to serve an update of the OpenStreetMap planet dump during every run
-clean: clean_osm ## [FINAL] Cleans the worktree for next nightly run. Does not clean non-repeating targets.
+clean: clean_out_data ## [FINAL] Cleans the worktree for next nightly run. Does not clean non-repeating targets.
 	echo "Cleanup for the next run completed"
-
-clean_osm: ## Cleans the planet-latest-updated.osm.pbf, so that OSM planet can be updated again.
-	if [ -f data/planet-is-broken ]; then rm -rf data/planet-latest.osm.pbf ; fi
-	rm -rf data/planet-is-broken
-	profile_make_clean data/planet-latest-updated.osm.pbf
 
 .PHONY: clean_out_data
 clean_out_data: | data/out ## Clean DB and directory data/out/ and delete targets
 	bash scripts/clean_out_data.sh
-	rm -f db/table/mapaction_data_table
-	rm -f db/table/osm_data_import
 
 data/in/mapaction: | data/in ## Create directory for the MapAction specific downloads
 	mkdir -p $@
@@ -172,60 +159,8 @@ data/out/datasets_all: data/out/country_extractions/ne_10m_lakes data/out/countr
 	echo "all the datasets prepared"
 	touch $@
 
-data/out/datasets_ckan_descriptions: data/out/datasets_all | data/out ## create json files with metadata for CKAN upload per dataset
-	find data/out/country_extractions/ -mindepth 3 -regex ".*\.\(shp\|geojson\|tif\|csv\)" | parallel 'bash scripts/mapaction_build_dataset_description.sh {}'
-	touch $@
-
-data/out/cmf_metadata_list_all: data/out/datasets_ckan_descriptions | data/out ## create csv file with metadata per country
-	find data/out/country_extractions/ -mindepth 1 -maxdepth 1 -type d | parallel 'python scripts/build_metadata_list.py {}'
-	touch $@
-
-data/out/upload_datasets_all: data/out/datasets_ckan_descriptions | data/out ## upload datasets in CKAN
-	find data/out/country_extractions/ -name "*.shp" | parallel 'bash scripts/mapaction_upload_dataset.sh {} shp'
-	find data/out/country_extractions/ -name "*.geojson" | parallel 'bash scripts/mapaction_upload_dataset.sh {} geojson'
-	find data/out/country_extractions/ -name "*.tif" | parallel 'bash scripts/mapaction_upload_dataset.sh {} tif'
-	touch $@
-
-data/out/upload_cmf_all: data/out/cmf_metadata_list_all | data/out/cmf ## upload CMFs in CKAN
-	find data/out/country_extractions/ -mindepth 1 -maxdepth 1 -type d | parallel 'bash scripts/mapaction_upload_cmf.sh {}'
-	touch $@
-
-create_completeness_report: data/out/upload_cmf_all | data/out/country_extractions ## create completeness report for each country
-	find data/out/country_extractions/ -mindepth 1 -maxdepth 1 -type d | parallel 'python scripts/create_completeness_report.py {}'
-	touch $@
-
-osmium_extract_config.json: ## generate config for osmium-extract
-	python scripts/generate_osmium_extract_config.py > $@
-
 data/mid/mapaction: | data/mid ## create directory data/mid/mapaction
 	mkdir -p $@
-
-data/in/mapaction/per_country_pbf: data/planet-latest-updated.osm.pbf osmium_extract_config.json | data/mid/mapaction ## create per-country extracts pbf files from planet.pbf
-	osmium extract --config osmium_extract_config.json --overwrite data/planet-latest-updated.osm.pbf
-	touch $@
-
-data/in/mapaction/osm_last_modified_date: data/in/mapaction/per_country_pbf | data/mid/mapaction ## get osm pbf last modified date
-	ls data/mid/mapaction/*.pbf | parallel 'osmium fileinfo -e -g data.timestamp.last {} > {}.last_modified.txt'
-	touch $@
-
-db/table/osm_data_import: data/in/mapaction/per_country_pbf | db/table ## Create and populate osm_[] tables in db
-	ls static_data/countries/*.json | parallel 'bash scripts/osm_data_import.sh {}'
-	touch $@
-
-db/table/mapaction_data_table: db/table/osm_data_import | db/table ## Create and populate mapaction_[] tables in db
-	ls static_data/countries/*.json | parallel 'bash scripts/mapaction_data_table.sh {}'
-	touch $@
-
-db/table/mapaction_directories: | db/table ## Load into db structure of directory to use it while export
-	psql -1 -c "drop table if exists mapaction_directories;"
-	psql -1 -c "create table mapaction_directories(dir_name text);"
-	cat static_data/directories/directories.csv | psql -c "copy mapaction_directories from stdin;"
-	touch $@
-
-data/out/mapaction_export: data/in/mapaction/osm_last_modified_date db/table/mapaction_data_table db/table/mapaction_directories | data/out/country_extractions ## Export from db to SHP and JSON
-	psql -1 -f scripts/mapaction_data_export.sql
-	ls static_data/countries/*.json | parallel 'bash scripts/mapaction_export.sh {}'
-	touch $@
 
 data/out/country_extractions/worldpop100m: | data/out/country_extractions ## download worldpop100m for every country
 	ls static_data/countries | parallel 'bash scripts/download_worldpop.sh {}'
@@ -270,15 +205,3 @@ data/out/country_extractions/elevation: data/in/download_srtm30m data/in/downloa
 data/out/country_extractions/download_hdx_admin_pop: | data/out/country_extractions ## download population tabular data from hdx
 	ls static_data/countries | parallel 'bash scripts/download_hdx_admin_pop.sh {}'
 	touch $@
-
-dev: data/out/upload_datasets_all data/out/upload_cmf_all create_completeness_report ## this runs when auto_start.sh executes
-	echo "dev target successfully build" | python scripts/slack_message.py $$SLACK_CHANNEL ${SLACK_BOT_NAME} $$SLACK_BOT_EMOJI
-	touch $@
-
-.PHONY: export_country
-export_country: db/table/mapaction_directories data/in/mapaction data/mid/mapaction data/out/mapaction | data/out/country_extractions ## run as make export_country COUNTRY=static_data/countries/blr.json
-	osmium extract --overwrite --polygon=$(COUNTRY) data/planet-latest-updated.osm.pbf -o data/mid/mapaction/$(shell (basename $(COUNTRY) .json) ).pbf
-	bash scripts/osm_data_import.sh $(COUNTRY)
-	bash scripts/mapaction_data_table.sh $(COUNTRY)
-	bash scripts/mapaction_export.sh $(COUNTRY)
-	bash scripts/mapaction_upload_cmf.sh $(shell echo data/out/country_extractions/$(shell (basename $(COUNTRY) .json) ))
