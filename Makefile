@@ -205,3 +205,7 @@ data/out/country_extractions/elevation: data/in/download_srtm30m data/in/downloa
 data/out/country_extractions/download_hdx_admin_pop: | data/out/country_extractions ## download population tabular data from hdx
 	ls static_data/countries | parallel 'bash scripts/download_hdx_admin_pop.sh {}'
 	touch $@
+
+dev: data/out/datasets_all ## this runs when auto_start.sh executes
+	echo "dev target successfully build" | python scripts/slack_message.py $$SLACK_CHANNEL ${SLACK_BOT_NAME} $$SLACK_BOT_EMOJI
+	touch $@
