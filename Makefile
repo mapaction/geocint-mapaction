@@ -7,6 +7,7 @@ export SLACK_CHANNEL = $(shell sed -n -e '/^SLACK_CHANNEL/p' ${file} | cut -d "=
 export SLACK_BOT_NAME = $(shell sed -n -e '/^SLACK_BOT_NAME/p' ${file} | cut -d "=" -f 2)
 export SLACK_BOT_EMOJI = $(shell sed -n -e '/^SLACK_BOT_EMOJI/p' ${file} | cut -d "=" -f 2)
 export SLACK_KEY = $(shell sed -n -e '/^SLACK_KEY/p' ${file} | cut -d "=" -f 2)
+export HS_API_KEY = $(shell sed -n -e '/^HS_API_KEY/p' ${file} | cut -d "=" -f 2)
 
 
 # these makefiles stored in geocint-runner and geocint-openstreetmap repositories
@@ -37,16 +38,8 @@ data/out/country_extractions/ocha_admin_boundaries: | data/in data/out ## proces
 	ls static_data/countries | parallel 'bash scripts/download_hdx_admin_boundaries.sh {}'
 	touch $@
 
-data/in/mapaction/healthsites-world.zip: | data/in/mapaction ## download healthsites world dataset
-	curl "https://healthsites.io/api/v2/facilities/shapefile/World/download" -o $@
-
-data/in/mapaction/healthsites/World-node.shp: data/in/mapaction/healthsites-world.zip | data/in/mapaction ## unzip healthsites dataset
-	unzip -o data/in/mapaction/healthsites-world.zip -d data/in/mapaction/healthsites
-	touch $@
-
-data/out/country_extractions/healthsites: data/in/mapaction/healthsites/World-node.shp | data/out/country_extractions  ## make healthsites per country extractions
-	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_shp.sh {} data/in/mapaction/healthsites/World-node.shp data/out/country_extractions/{country_code}/215_heal/{country_code}_heal_hea_pt_s4_healthsites_pp_healthfacilities'
-	touch $@
+data/out/country_extractions/healthsites: | data/in data/mid data/out
+	python scripts/process_healthsites_download.py ${GEOCINT_WORK_DIRECTORY} $(HS_API_KEY) 
 
 data/in/mapaction/ne_10m_rivers_lake_centerlines.zip: | data/in/mapaction ## download ne_10m_rivers_lake_centerlines
 	curl "https://naciscdn.org/naturalearth/10m/physical/ne_10m_rivers_lake_centerlines.zip" -o $@
