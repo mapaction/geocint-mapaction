@@ -4,6 +4,8 @@ import os
 import sys
 import logging
 import zipfile
+import geopandas as gpd
+import pandas as pd
 
 # Set up logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,8 +24,9 @@ def download_shapefile_zip(api_key, country, country_code):
         if response:
             # Get the filename from the response URL
             filename = f"{country_code}.zip"
-            save_directory = "./data/mid/mapaction" 
-            extract_dir = f"./data/out/country_extractions/{country_code}/215_heal"
+            save_directory = f"./data/in/mapaction/healthsites/{country_code}" 
+            extract_dir = f"./data/mid/mapaction/healthsites/{country_code}"
+            out_dir = f"./data/out/country_extractions/{country_code}/215_heal"
             
             logging.info(f"Filename - {filename} ------ save dir - {save_directory}")
             
@@ -42,6 +45,11 @@ def download_shapefile_zip(api_key, country, country_code):
             
             # Extract and rename files
             extract_zip(save_path, extract_dir, country_code)
+
+            convert_to_gpkg(extract_dir, out_dir, country_code)
+
+            # Delete the original ZIP file
+            shutil.rmtree(extract_dir)
         else:
             logging.error("Unexpected response format: %s", response)
     except coreapi.exceptions.ErrorMessage as e:
@@ -55,32 +63,33 @@ def extract_zip(zip_file_path, extract_dir, country_code):
     # Extract the contents of the ZIP file to the extraction directory
     with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
-        
-        # Rename each extracted file by splitting the filename using '-'
-        for root, _, files in os.walk(extract_dir):
-            for file_name in files:
-                if "README" in file_name or "LICENSE" in file_name:
-                    continue  # Skip README and LICENSE files
+
+def convert_to_gpkg(zip_file_path, extract_dir, country_code):
+    layers = {}
+    for root, _, files in os.walk(zip_file_path):
+        for file_name in files:
+            if file_name.endswith(".shp"):
+                shapefile_path = os.path.join(root, file_name)
+                gdf = gpd.read_file(shapefile_path)
                 
-                old_file_path = os.path.join(root, file_name)
-                parts = file_name.split('-')
+                # Handle field name collisions
+                gdf.columns = [f"{col}_{i}" if gdf.columns.tolist().count(col) > 1 else col for i, col in enumerate(gdf.columns)]
                 
-                # Check if the parts list has at least two elements
-                if len(parts) < 2:
-                    continue  # Skip files with insufficient parts
+                # Reproject to a projected CRS before calculating centroids
+                gdf = gdf.to_crs(epsg=4326)
+                gdf['geometry'] = gdf.centroid
+                gdf = gdf.to_crs(epsg=4326)  # Convert back to geographic CRS
                 
-                new_file_name = f'{country_code}_heal_hea_pt_s3_healthsites_pp_healthfacilities_{parts[1]}'  # Concatenate with country_code
-                new_file_path = os.path.join(root, new_file_name)
-                
-                # Check if the file already has the desired naming convention
-                if new_file_name in files:
-                    continue  # Skip files already renamed with the desired convention
-                
-                # Move the file with overwrite
-                shutil.move(old_file_path, new_file_path, copy_function=shutil.copy2)
+                # Add to layers dictionary
+                layer_name = os.path.splitext(file_name)[0]
+                layers[layer_name] = gdf
+
+    # Combine layers into one GeoDataFrame
+    combined_gdf = gpd.GeoDataFrame(pd.concat(layers.values(), ignore_index=True), crs=layers[list(layers.keys())[0]].crs)
+    gpkg_path = os.path.join(extract_dir, f"{country_code}_heal_hea_pt_s3_healthsites_pp_healthfacilities.gpkg")
+    combined_gdf.to_file(gpkg_path, layer="combined_layers", driver="GPKG")
     
-    # Delete the original ZIP file
-    os.remove(zip_file_path)
+    logging.info(f"Saved combined GeoPackage to: {gpkg_path}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
