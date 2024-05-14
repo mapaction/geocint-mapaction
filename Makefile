@@ -7,6 +7,7 @@ export SLACK_CHANNEL = $(shell sed -n -e '/^SLACK_CHANNEL/p' ${file} | cut -d "=
 export SLACK_BOT_NAME = $(shell sed -n -e '/^SLACK_BOT_NAME/p' ${file} | cut -d "=" -f 2)
 export SLACK_BOT_EMOJI = $(shell sed -n -e '/^SLACK_BOT_EMOJI/p' ${file} | cut -d "=" -f 2)
 export SLACK_KEY = $(shell sed -n -e '/^SLACK_KEY/p' ${file} | cut -d "=" -f 2)
+export HS_API_KEY = $(shell sed -n -e '/^HS_API_KEY/p' ${file} | cut -d "=" -f 2)
 
 
 # these makefiles stored in geocint-runner and geocint-openstreetmap repositories
@@ -37,16 +38,8 @@ data/out/country_extractions/ocha_admin_boundaries: | data/in data/out ## proces
 	ls static_data/countries | parallel 'bash scripts/download_hdx_admin_boundaries.sh {}'
 	touch $@
 
-data/in/mapaction/healthsites-world.zip: | data/in/mapaction ## download healthsites world dataset
-	curl "https://healthsites.io/api/v2/facilities/shapefile/World/download" -o $@
-
-data/in/mapaction/healthsites/World-node.shp: data/in/mapaction/healthsites-world.zip | data/in/mapaction ## unzip healthsites dataset
-	unzip -o data/in/mapaction/healthsites-world.zip -d data/in/mapaction/healthsites
-	touch $@
-
-data/out/country_extractions/healthsites: data/in/mapaction/healthsites/World-node.shp | data/out/country_extractions  ## make healthsites per country extractions
-	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_shp.sh {} data/in/mapaction/healthsites/World-node.shp data/out/country_extractions/{country_code}/215_heal/{country_code}_heal_hea_pt_s4_healthsites_pp_healthfacilities'
-	touch $@
+data/out/country_extractions/healthsites: | data/in data/mid data/out
+	python scripts/process_healthsites_download.py ${GEOCINT_WORK_DIRECTORY} $(HS_API_KEY) 
 
 data/in/mapaction/ne_10m_rivers_lake_centerlines.zip: | data/in/mapaction ## download ne_10m_rivers_lake_centerlines
 	curl "https://naciscdn.org/naturalearth/10m/physical/ne_10m_rivers_lake_centerlines.zip" -o $@
@@ -87,7 +80,7 @@ data/in/mapaction/ne_10m_populated_places/ne_10m_populated_places.shp: data/in/m
 	touch $@
 
 data/out/country_extractions/ne_10m_populated_places: data/in/mapaction/ne_10m_populated_places/ne_10m_populated_places.shp | data/out/country_extractions ## ne_10m_populated_placess per country extractions
-	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_shp.sh {} data/in/mapaction/ne_10m_populated_places/ne_10m_populated_places.shp data/out/country_extractions/{country_code}/229_stle/{country_code}_stle_stl_pt_s0_naturalearth_pp_maincities'
+	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_shp.sh {} data/in/mapaction/ne_10m_populated_places/ne_10m_populated_places.shp data/out/country_extractions/{country_code}/229_stle/{country_code}_stle_stl_pt_s0_naturalearth_pp_layer_downloadercities'
 	touch $@
 
 data/in/mapaction/ne_10m_lakes.zip: | data/in/mapaction ## ne_10m_lakes
@@ -155,7 +148,7 @@ data/out/country_extractions/global_power_plant_database: data/in/mapaction/glob
 data/out/cmf: | data/out ## create directory for CMFs
 	mkdir -p $@
 
-data/out/datasets_all: data/out/country_extractions/ne_10m_lakes data/out/country_extractions/ourairports data/out/country_extractions/worldports data/out/country_extractions/wfp_railroads data/out/country_extractions/global_power_plant_database data/out/country_extractions/ne_10m_rivers_lake_centerlines data/out/country_extractions/ne_10m_populated_places data/out/country_extractions/ne_10m_roads data/out/country_extractions/healthsites data/out/country_extractions/ocha_admin_boundaries data/out/mapaction_export data/out/country_extractions/worldpop1km data/out/country_extractions/worldpop100m data/out/country_extractions/elevation data/out/country_extractions/download_hdx_admin_pop | data/out ## Milestone: all the datasets have been prepared
+data/out/datasets_all: data/out/country_extractions/ne_10m_lakes data/out/country_extractions/ourairports data/out/country_extractions/worldports data/out/country_extractions/wfp_railroads data/out/country_extractions/global_power_plant_database data/out/country_extractions/ne_10m_rivers_lake_centerlines data/out/country_extractions/ne_10m_populated_places data/out/country_extractions/ne_10m_roads data/out/country_extractions/healthsites data/out/country_extractions/ocha_admin_boundaries data/out/mapaction_export data/out/country_extractions/worldpop1km data/out/country_extractions/worldpop100m data/out/country_extractions/elevation data/out/country_extractions/download_hdx_admin_pop osm_roads osm_railway osm_dam osm_school osm_education osm_ferry osm_ferry_route osm_port osm_bank osm_atm osm_healthfacilities osm_hospital osm_border_control osm_settlement osm_waterbodies osm_large_river osm_large_river osm_phys_river osm_canal osm_railway2 | data/out ## Milestone: all the datasets have been prepared
 	echo "all the datasets prepared"
 	touch $@
 
@@ -185,25 +178,85 @@ data/mid/srtm90m: | data/mid ## create dir
 data/in/gmted250m: | data/in ## create dir
 	mkdir -p $@
 
-data/in/download_srtm30m: | data/in/srtm30m data/mid/srtm30m ## download srtm30m zipped tiles
-	bash scripts/download_srtm30m.sh
-	touch $@
-
-data/in/download_srtm90m: | data/in/srtm90m data/mid/srtm90m ## download srtm90m zipped tiles
-	bash scripts/download_srtm90m.sh
-	touch $@
-
-data/in/gmted250m/gmted250m.zip: | data/in/gmted250m ## download GMTED2010 Global Grids in zipped ESRI ArcGrid format
-	curl https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/topo/downloads/GMTED/Grid_ZipFiles/be75_grd.zip -o $@
-
-data/out/country_extractions/elevation: data/in/download_srtm30m data/in/download_srtm90m data/in/gmted250m/gmted250m.zip | data/out/country_extractions ## clip country polygon from srtm30m.vrt and srtm90m.vrt
-	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_srtm.sh {} srtm30m'
-	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_srtm.sh {} srtm90m'
-	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_srtm.sh {} gmted250m'
-	touch $@
-
 data/out/country_extractions/download_hdx_admin_pop: | data/out/country_extractions ## download population tabular data from hdx
 	ls static_data/countries | parallel 'bash scripts/download_hdx_admin_pop.sh {}'
+	touch $@
+
+# osm layer targets
+osm_roads: | data/out/country_extractions ## osm roads
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 1
+	touch $@
+
+osm_railway: | data/out/country_extractions ## osm railway
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 2
+	touch $@
+
+osm_dam: | data/out/country_extractions ## osm dam
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 3
+	touch $@
+
+osm_school: | data/out/country_extractions ## osm school
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 4
+	touch $@
+
+osm_education: | data/out/country_extractions ## osm education
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 5
+	touch $@
+
+osm_ferry: | data/out/country_extractions ## osm ferry
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 6
+	touch $@
+
+osm_ferry_route: | data/out/country_extractions ## osm ferry route
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 7
+	touch $@
+
+osm_port: | data/out/country_extractions ## osm healthsites
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 8
+	touch $@
+
+osm_bank: | data/out/country_extractions ## osm bank
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 9
+	touch $@
+
+osm_atm: | data/out/country_extractions ## osm atm
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 10
+	touch $@
+
+osm_healthfacilities: | data/out/country_extractions ## osm healthsites
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 11
+	touch $@
+
+osm_hospital: | data/out/country_extractions ## osm hospital
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 12
+	touch $@
+
+osm_border_control: | data/out/country_extractions ## osm boarder control
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 13
+	touch $@
+
+osm_settlement: | data/out/country_extractions ## osm settlement
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 14
+	touch $@
+
+osm_waterbodies: | data/out/country_extractions ## osm waterbodies
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 15
+	touch $@
+
+osm_large_river: | data/out/country_extractions ## osm large river
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 16
+	touch $@
+
+osm_phys_river: | data/out/country_extractions ## osm phys river
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 17
+	touch $@
+
+osm_canal: | data/out/country_extractions ## osm canal
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 18
+	touch $@
+
+osm_railway2: | data/out/country_extractions ## osm railway 2
+	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 19
 	touch $@
 
 dev: data/out/datasets_all ## this runs when auto_start.sh executes
