@@ -178,23 +178,6 @@ data/mid/srtm90m: | data/mid ## create dir
 data/in/gmted250m: | data/in ## create dir
 	mkdir -p $@
 
-# data/in/download_srtm30m: | data/in/srtm30m data/mid/srtm30m ## download srtm30m zipped tiles
-# 	bash scripts/download_srtm30m.sh
-# 	touch $@
-
-# data/in/download_srtm90m: | data/in/srtm90m data/mid/srtm90m ## download srtm90m zipped tiles
-# 	bash scripts/download_srtm90m.sh
-# 	touch $@
-
-# data/in/gmted250m/gmted250m.zip: | data/in/gmted250m ## download GMTED2010 Global Grids in zipped ESRI ArcGrid format
-# 	curl https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/topo/downloads/GMTED/Grid_ZipFiles/be75_grd.zip -o $@
-
-# data/out/country_extractions/elevation: data/in/download_srtm30m data/in/download_srtm90m data/in/gmted250m/gmted250m.zip | data/out/country_extractions ## clip country polygon from srtm30m.vrt and srtm90m.vrt
-# 	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_srtm.sh {} srtm30m'
-# 	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_srtm.sh {} srtm90m'
-# 	ls static_data/countries | parallel 'bash scripts/mapaction_extract_country_from_srtm.sh {} gmted250m'
-# 	touch $@
-
 data/out/country_extractions/download_hdx_admin_pop: | data/out/country_extractions ## download population tabular data from hdx
 	ls static_data/countries | parallel 'bash scripts/download_hdx_admin_pop.sh {}'
 	touch $@
@@ -275,9 +258,6 @@ osm_canal: | data/out/country_extractions ## osm canal
 osm_railway2: | data/out/country_extractions ## osm railway 2
 	python src/layer_downloader.py ${GEOCINT_WORK_DIRECTORY} 19
 	touch $@
-
-# run_osm: | data/out/country_extractions ## running geocint-mapaction-osm
-# 	python src/main.py ${GEOCINT_WORK_DIRECTORY}
 
 dev: data/out/datasets_all ## this runs when auto_start.sh executes
 	echo "dev target successfully build" | python scripts/slack_message.py $$SLACK_CHANNEL ${SLACK_BOT_NAME} $$SLACK_BOT_EMOJI
