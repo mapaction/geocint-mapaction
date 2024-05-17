@@ -1,4 +1,10 @@
 {
+    "afg": {
+        "name": "Afghanistan",
+        "adm0": "country",
+        "adm1": "province",
+        "source": "agcho"
+    },
     "ago": {
         "name": "Angola",
         "adm0": "country",
@@ -940,6 +946,12 @@
         "adm0": "country",
         "adm1": "province",
         "source": "wfp"
+    },
+    "pan": {
+        "name": "Panama",
+        "adm0": "country",
+        "adm1": "province",
+        "source": "gdam"
     },
     "pcn": {
         "name": "Pitcairn Islands",

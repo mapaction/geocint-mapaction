@@ -1,4 +1,5 @@
 source_dict = {
+    "afg": "agcho",
     "ago": "ine",
     "aia": "gdam",
     "alb": "unhcr",
@@ -148,6 +149,7 @@ source_dict = {
     "nzl": "no cod data",
     "omn": "gadm",
     "pak": "wfp",
+    "pan": "gdam",
     "pcn": "no cod data",
     "per": "ign",
     "phl": "psa",

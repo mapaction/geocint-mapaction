@@ -86,9 +86,9 @@ if __name__ == "__main__":
     geocint_dir = sys.argv[1]
 
     # Usage
-    geojson_directory = f"{geocint_dir}/static_data/countries_world"
-    json_file = f"{geocint_dir}/static_data/admin_level_display_names.json"
-    source_file = f"{geocint_dir}/scripts/source_dict.py"
+    geojson_directory = f"{geocint_dir}/geocint-mapaction/static_data/countries_world"
+    json_file = f"{geocint_dir}/geocint-mapaction/static_data/admin_level_display_names.json"
+    source_file = f"{geocint_dir}/geocint-mapaction/scripts/source_dict.py"
     
     country_data = process_geojson(geojson_directory)
     update_json_file(json_file, country_data, source_dict)
