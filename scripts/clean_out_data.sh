@@ -1,13 +1,19 @@
 #!/bin/bash
 
-# This script deletes all files in data/out directory
-# and all tables in postgresql db for country extracts. E.g. mapaction_{country_code} and osm_{country_code}
-# Use this script to free up disk space and remove outpud data for countries which are no longer needed.
+# Log script start time
+echo "[$(date)] Starting clean_out_data.sh..."
 
-# delete tables in DB
-for country_code in $(find data/out/country_extractions/ -mindepth 1 -maxdepth 1 -type d -printf '%f\n')
+# Check if data/out directory exists
+if [ -d "data/out" ]; then
+    echo "[$(date)] Deleting data/out directory..."
+    rm -rf data/out
+else
+    echo "[$(date)] data/out directory not found. Skipping deletion."
+fi
 
-# delete data/out
-rm -rf data/out
-
+# Create data/out directory (force if it already exists)
+echo "[$(date)] Creating data/out directory..."
 mkdir -p data/out
+
+# Log script completion
+echo "[$(date)] clean_out_data.sh completed."
