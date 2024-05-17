@@ -28,6 +28,12 @@ clean: clean_out_data ## [FINAL] Cleans the worktree for next nightly run. Does 
 clean_out_data: | data/out ## Clean DB and directory data/out/ and delete targets
 	bash scripts/clean_out_data.sh
 
+check_source_metadata:
+	python scripts/populate_source_dict.py ${GEOCINT_WORK_DIRECTORY}
+
+populate_admin_level_display_names: | check_source_metadata
+	python scripts/populate_admin_level_display_names.py ${GEOCINT_WORK_DIRECTORY}
+
 data/in/mapaction: | data/in ## Create directory for the MapAction specific downloads
 	mkdir -p $@
 
