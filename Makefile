@@ -28,6 +28,14 @@ clean: clean_out_data ## [FINAL] Cleans the worktree for next nightly run. Does 
 clean_out_data: | data/out ## Clean DB and directory data/out/ and delete targets
 	bash scripts/clean_out_data.sh
 
+check_source_metadata:
+	python scripts/populate_source_dict.py ${GEOCINT_WORK_DIRECTORY}
+	touch $@
+
+populate_admin_level_display_names: | check_source_metadata
+	python scripts/populate_admin_level_display_names.py ${GEOCINT_WORK_DIRECTORY}
+	touch $@
+
 data/in/mapaction: | data/in ## Create directory for the MapAction specific downloads
 	mkdir -p $@
 
@@ -40,6 +48,7 @@ data/out/country_extractions/ocha_admin_boundaries: | data/in data/out ## proces
 
 data/out/country_extractions/healthsites: | data/in data/mid data/out
 	python scripts/process_healthsites_download.py ${GEOCINT_WORK_DIRECTORY} $(HS_API_KEY) 
+	touch $@
 
 data/in/mapaction/ne_10m_rivers_lake_centerlines.zip: | data/in/mapaction ## download ne_10m_rivers_lake_centerlines
 	curl "https://naciscdn.org/naturalearth/10m/physical/ne_10m_rivers_lake_centerlines.zip" -o $@

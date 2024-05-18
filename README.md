@@ -12,6 +12,7 @@ This pipeline downloads data from various sources, including OpenStreetMap, HDX 
 In order to make it running, you need two other repositories:
 
 * https://github.com/mapaction/geocint-runner
+* https://github.com/mapaction/geocint-mapaction-osm
 
 For more information on geocint installation and basic configuration please see [Geocint readme](https://github.com/mapaction/geocint-runner/blob/main/README.md) and [Geocint documentation](https://github.com/mapaction/geocint-runner/blob/main/DOCUMENTATION.md).
 
